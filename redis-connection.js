@@ -19,3 +19,5 @@ redisClient.on("error", (err) => {
 (async () => {
   await redisClient.connect();
 })();
+
+module.exports = redisClient;
