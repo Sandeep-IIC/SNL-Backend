@@ -152,10 +152,24 @@ webSocketServer.on("connection", async (ws, req) => {
         });
         ws.send(
           JSON.stringify({
-            event: ReturnEvents.GET_USER_CHANCE,
+            event: Events.GET_ROOM_USER_POSITION,
             payload: { positions },
           })
         );
+      });
+    }
+
+    if (data.event === Events.SEND_USER_CHANCE) {
+      const userId = data.payload.userId;
+      webSocketServer.clients.forEach((client) => {
+        if (client.readyState === WebSocket.OPEN) {
+          client.send(
+            JSON.stringify({
+              event: Events.SEND_USER_CHANCE,
+              payload: { userId: userId },
+            })
+          );
+        }
       });
     }
   });

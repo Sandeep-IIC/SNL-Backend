@@ -9,6 +9,7 @@ export const Events = {
     DICE_NUMBER: "dice-number",
     GET_USER_CHANCE : "get-user-chance",
     GET_ROOM_USER_POSITION : "get-room-user-position",
+    SEND_USER_CHANCE: "send-user-chance",
 }
 
 export const ReturnEvents = {
