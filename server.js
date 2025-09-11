@@ -34,10 +34,22 @@ webSocketServer.on("connection", async (ws, req) => {
     if (data.event === Events.SET_POSITION) {
       const userId = data.payload.userId;
       const roomId = data.payload.userId;
-      await redisClient.set(
-        userId.toString(),
-        data.payload.position.toString()
-      );
+      await redisClient.get(userId).then(async (res) => {
+        if (data.payload.position == 1 && res > 1) {
+          ws.send(
+            JSON.stringify({
+              event: Events.SET_POSITION,
+              payload: { position: res, userId: userId },
+            })
+          );
+          return;
+        }
+        await redisClient.set(
+          userId.toString(),
+          data.payload.position.toString()
+        );
+      });
+
       webSocketServer.clients.forEach((client) => {
         if (client.readyState === WebSocket.OPEN) {
           client.send(
@@ -86,9 +98,19 @@ webSocketServer.on("connection", async (ws, req) => {
           ws.send(
             JSON.stringify({
               event: ReturnEvents.ROOM_JOINED,
-              payload: { roomId },
+              payload: { roomId, userId },
             })
           );
+          webSocketServer.clients.forEach((client) => {
+            if (client.readyState === WebSocket.OPEN) {
+              client.send(
+                JSON.stringify({
+                  event: Events.JOIN_ROOM,
+                  payload: { roomId, userId: userId },
+                })
+              );
+            }
+          });
         }
       });
     }
@@ -161,12 +183,38 @@ webSocketServer.on("connection", async (ws, req) => {
 
     if (data.event === Events.SEND_USER_CHANCE) {
       const userId = data.payload.userId;
+      const roomId = data.payload.roomId;
+      await redisClient.set(`room-${roomId}-chance`, userId);
       webSocketServer.clients.forEach((client) => {
         if (client.readyState === WebSocket.OPEN) {
           client.send(
             JSON.stringify({
               event: Events.SEND_USER_CHANCE,
-              payload: { userId: userId },
+              payload: { userId: userId, roomId: roomId },
+            })
+          );
+        }
+      });
+    }
+
+    if (data.event === Events.PING) {
+      ws.send(JSON.stringify({ event: Events.PONG, payload: {} }));
+    }
+
+    if (data.event === Events.END_TURN) {
+      const userId = data.payload.userId;
+      const roomId = data.payload.roomId;
+      const users = await redisClient.sMembers(`room-${roomId}-users`);
+      const currentIndex = users.indexOf(userId);
+      const nextIndex = (currentIndex + 1) % users.length;
+      const nextUserId = users[nextIndex];
+      await redisClient.set(`room-${roomId}-chance`, nextUserId);
+      webSocketServer.clients.forEach((client) => {
+        if (client.readyState === WebSocket.OPEN) {
+          client.send(
+            JSON.stringify({
+              event: Events.SEND_USER_CHANCE,
+              payload: { userId: nextUserId, roomId: roomId },
             })
           );
         }
@@ -178,6 +226,7 @@ webSocketServer.on("connection", async (ws, req) => {
   const userId = url.searchParams.get("userId");
 
   console.log("User connected:", userId);
+  ws.send(JSON.stringify({ event: "connected", payload: { userId } }));
   await redisClient.sAdd("onlineUsers", userId);
   const onlineUsers = await redisClient.sMembers("onlineUsers");
 
